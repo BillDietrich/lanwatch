@@ -1,0 +1,3 @@
+python ./lanwatch.py
+pause
+
