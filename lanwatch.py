@@ -42,7 +42,7 @@ gsAccessType = 'HTTP'         # HTTP or DNS
 
 gsUIChoice = 'stdout'   # one or more of: notification syslog stdout
 
-gsDatabase = 'lanwatch.csv'
+gsDatabaseFilename = 'lanwatch.csv'
 
 
 #--------------------------------------------------------------------------------------------------
@@ -80,13 +80,8 @@ if gbOSWindows:
 
 # state variables
 
-gsConnectionState = 'none'    # none or 'rejected by site' or connected
+garrDevices = []    # each row = [MAC address, vendor, name, description]
 
-gsOldIPAddress = 'start'    # start or 'internal error' or 'no network connection' or connected'
-
-gnSleep = 0
-
-gnNextSiteIndex = 0
 
 
 #--------------------------------------------------------------------------------------------------
@@ -173,34 +168,67 @@ def ReportNewDevice(sMsg):
 
 #--------------------------------------------------------------------------------------------------
 
-if __name__ == '__main__':
+def CreateDatabase():
 
-    try:
-        objDatabaseFile = open(gsDatabase, "r", newline='')
-    except:
-        print('open "'+gsDatabase+'" failed, creating file')
-        try:
-            f = open(gsDatabase,"w+")
-            f.close()
-            print('past close')
-            objDatabaseFile = open(gsDatabase, "r", newline='')
-        except:
-            print('create "'+gsDatabase+'" failed')
-            sys.exit()
+    global gsDatabaseFilename
 
+    print('CreateDatabase: called')
+    f = open(gsDatabaseFilename,"w+")
+    f.close()
+
+
+#--------------------------------------------------------------------------------------------------
+
+def ReadDatabase():
+
+    global gsDatabaseFilename
+    global garrDevices
+
+    garrDevices = []
+
+    print('ReadDatabase: called')
+    objDatabaseFile = open(gsDatabaseFilename, "r", newline='')
     objDatabaseReader = csv.reader(objDatabaseFile, delimiter=' ', quotechar='|')
     for row in objDatabaseReader:
-        print(', '.join(row))
+        print('ReadDatabase: got row '+str(row))
+        garrDevices.append(row)
     objDatabaseReader = 0
     objDatabaseFile.close()
 
-    objDatabaseFile = open(gsDatabase, "w", newline='')
+
+#--------------------------------------------------------------------------------------------------
+
+def WriteDatabase():
+
+    global gsDatabaseFilename
+    global garrDevices
+
+    print('WriteDatabase: called')
+    objDatabaseFile = open(gsDatabaseFilename, "w", newline='')
     objDatabaseWriter = csv.writer(objDatabaseFile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
-    objDatabaseWriter.writerow([time.strftime("%H:%M:%S")] + ['78901'])
-    objDatabaseWriter.writerow([time.strftime("%H:%M:%S")] + ['jklmn'])
+    for row in garrDevices:
+        print('WriteDatabase: write row '+str(row))
+        objDatabaseWriter.writerow(row)
+    #objDatabaseWriter.writerow([time.strftime("%H:%M:%S")] + ['78901'])
+    #objDatabaseWriter.writerow([time.strftime("%H:%M:%S")] + ['jklmn'])
     objDatabaseWriter = 0
     objDatabaseFile.close()
-    
+
+
+#--------------------------------------------------------------------------------------------------
+
+if __name__ == '__main__':
+
+    try:
+        ReadDatabase()
+    except:
+        print('read "'+gsDatabaseFilename+'" failed, creating file')
+        try:
+            CreateDatabase()
+        except:
+            print('create "'+gsDatabaseFilename+'" failed')
+            sys.exit()
+
     while True:
 
         arrsMACAddress = DoARPScan()
@@ -209,8 +237,16 @@ if __name__ == '__main__':
         for sMACAddress in arrsMACAddress:
             sVendor = get_vendor(sMACAddress)
             print('sMACAddress '+sMACAddress+' == vendor "'+sVendor+'"')
+            garrDevices.append([sMACAddress, sVendor, 'name', 'description'])
             time.sleep(1)
 
+        try:
+            WriteDatabase()
+        except:
+            print('write "'+gsDatabaseFilename+'" failed')
+            sys.exit()
+
+        sys.exit()
         ReportNewDevice('New device on LAN: zzzzzzzzzzzzzzz')
 
         try:
