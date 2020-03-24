@@ -26,10 +26,6 @@
 # https://github.com/secdev/scapy
 # https://github.com/williamajayi/network-scanner
 # https://github.com/Honeypot-R8o/ARP-Alert/blob/master/arp-alert.py
-# https://docs.python.org/3/library/csv.html
-
-
-
 
 
 #--------------------------------------------------------------------------------------------------
@@ -56,7 +52,7 @@ import ipaddress
 import os           # https://docs.python.org/3/library/os.html
 import socket
 import scapy.all as scapy
-import csv
+import csv          # https://docs.python.org/3/library/csv.html
 
 gbOSLinux = (platform.system() == "Linux")
 gbOSWindows = (platform.system() == "Windows")
@@ -188,7 +184,7 @@ def ReadDatabase():
 
     print('ReadDatabase: called')
     objDatabaseFile = open(gsDatabaseFilename, "r", newline='')
-    objDatabaseReader = csv.reader(objDatabaseFile, delimiter=' ', quotechar='|')
+    objDatabaseReader = csv.reader(objDatabaseFile)
     for row in objDatabaseReader:
         print('ReadDatabase: got row '+str(row))
         garrDevices.append(row)
@@ -205,7 +201,7 @@ def WriteDatabase():
 
     print('WriteDatabase: called')
     objDatabaseFile = open(gsDatabaseFilename, "w", newline='')
-    objDatabaseWriter = csv.writer(objDatabaseFile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+    objDatabaseWriter = csv.writer(objDatabaseFile)
     for row in garrDevices:
         print('WriteDatabase: write row '+str(row))
         objDatabaseWriter.writerow(row)
@@ -213,6 +209,19 @@ def WriteDatabase():
     #objDatabaseWriter.writerow([time.strftime("%H:%M:%S")] + ['jklmn'])
     objDatabaseWriter = 0
     objDatabaseFile.close()
+
+
+#--------------------------------------------------------------------------------------------------
+
+def bIsMACAddressInDatabase(sMACAddress):
+
+    global garrDevices
+
+    print('IsMACAddressInDatabase: called, sMACAddress '+sMACAddress)
+    for row in garrDevices:
+        if (row[0] == sMACAddress):
+            return True
+    return False
 
 
 #--------------------------------------------------------------------------------------------------
@@ -235,24 +244,20 @@ if __name__ == '__main__':
         print('arrsMACAddress '+str(arrsMACAddress))
 
         for sMACAddress in arrsMACAddress:
-            sVendor = get_vendor(sMACAddress)
-            print('sMACAddress '+sMACAddress+' == vendor "'+sVendor+'"')
-            garrDevices.append([sMACAddress, sVendor, 'name', 'description'])
-            time.sleep(1)
+            if (not bIsMACAddressInDatabase(sMACAddress)):
+                sVendor = get_vendor(sMACAddress)
+                print('new sMACAddress '+sMACAddress+' == vendor "'+sVendor+'"')
+                ReportNewDevice('New device on LAN: sMACAddress '+sMACAddress+' == vendor "'+sVendor+'"')
+                garrDevices.append([sMACAddress, sVendor, 'name', 'description'])
+                try:
+                    WriteDatabase()
+                except:
+                    print('write "'+gsDatabaseFilename+'" failed')
+                    sys.exit()
+                time.sleep(1)
 
         try:
-            WriteDatabase()
-        except:
-            print('write "'+gsDatabaseFilename+'" failed')
-            sys.exit()
-
-        sys.exit()
-        ReportNewDevice('New device on LAN: zzzzzzzzzzzzzzz')
-
-        try:
-
             time.sleep(15)
-
         except KeyboardInterrupt:
             sys.exit()
 
