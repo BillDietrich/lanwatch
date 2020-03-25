@@ -18,14 +18,15 @@
 # https://itsfoss.com/how-to-find-what-devices-are-connected-to-network-in-ubuntu/
 # https://itsfoss.com/nutty-network-monitoring-tool/
 # https://quassy.github.io/elementary-apps/Nutty/
+# sudo nmap -sn 192.168.0.*
+# sudo nmap -O 192.168.0.12
 
 # turn off VPN
 
 # python:
 # https://scapy.net/
 # https://github.com/secdev/scapy
-# https://github.com/williamajayi/network-scanner
-# https://github.com/Honeypot-R8o/ARP-Alert/blob/master/arp-alert.py
+
 
 
 #--------------------------------------------------------------------------------------------------
@@ -94,12 +95,13 @@ def DoARPScan():
     # (scapy.srp) send and respond + allow ether frame for the answered resquests
     answered = scapy.srp(arp_broadcast, timeout=1, verbose=False)[0]
 
-    arrsMACAddress = []
+    arrAddress = []
     for element in answered:
         # print('element '+str(element))
-        arrsMACAddress.append(element[1].hwsrc)
+        #       [MAC address, LAN IP address]
+        arrAddress.append([element[1].hwsrc, element[1].psrc])
     
-    return arrsMACAddress
+    return arrAddress
 
 
 #--------------------------------------------------------------------------------------------------
@@ -113,6 +115,40 @@ def get_vendor(mac_address):
         return r.text
     else:
         return "Unknown vendor"
+
+
+#--------------------------------------------------------------------------------------------------
+
+def get_devicename(ip_address):
+
+    # https://www.comparitech.com/net-admin/scan-for-ip-addresses-local-network/
+    # https://www.comparitech.com/net-admin/dhcp/
+    # sudo nmap -O 192.168.0.0/24
+    # how does nmap determine OS type ?
+    # zenmap
+
+    try:
+        # https://pythontic.com/modules/socket/gethostbyaddr
+        # fails for all but router, and gives a mfr's domain for that
+        # gives (name, [aliases], [IPAddresses])
+        #hostnametuple = socket.gethostbyaddr(ip_address)
+        #sHostname = hostnametuple[0]
+
+        # gives mfr's domain for router, and local IP addr for all others
+        sHostname = socket.getfqdn(ip_address)
+        print('get_devicename: ip_address '+ip_address+' gives hostname '+sHostname)
+
+        # works for some Windows 10 machines, have to be running NETBIOS ?
+        # nmblookup -A 192.168.0.11
+
+        # works only if there is a DNS for the LAN (unlikely)
+        # nslookup 192.168.0.11
+
+        # hostname of THIS machine
+        # hostname -f
+    except:
+        sHostname = 'Unknown name'
+    return sHostname
 
 
 #--------------------------------------------------------------------------------------------------
@@ -188,7 +224,7 @@ def ReadDatabase():
     for row in objDatabaseReader:
         print('ReadDatabase: got row '+str(row))
         garrDevices.append(row)
-    objDatabaseReader = 0
+    objDatabaseReader = None
     objDatabaseFile.close()
 
 
@@ -207,7 +243,7 @@ def WriteDatabase():
         objDatabaseWriter.writerow(row)
     #objDatabaseWriter.writerow([time.strftime("%H:%M:%S")] + ['78901'])
     #objDatabaseWriter.writerow([time.strftime("%H:%M:%S")] + ['jklmn'])
-    objDatabaseWriter = 0
+    objDatabaseWriter = None
     objDatabaseFile.close()
 
 
@@ -240,15 +276,18 @@ if __name__ == '__main__':
 
     while True:
 
-        arrsMACAddress = DoARPScan()
-        print('arrsMACAddress '+str(arrsMACAddress))
+        arrAddress = DoARPScan()
+        print('arrAddress '+str(arrAddress))
 
-        for sMACAddress in arrsMACAddress:
+        for arrDevice in arrAddress:
+            sMACAddress = arrDevice[0]
             if (not bIsMACAddressInDatabase(sMACAddress)):
                 sVendor = get_vendor(sMACAddress)
-                print('new sMACAddress '+sMACAddress+' == vendor "'+sVendor+'"')
-                ReportNewDevice('New device on LAN: sMACAddress '+sMACAddress+' == vendor "'+sVendor+'"')
-                garrDevices.append([sMACAddress, sVendor, 'name', 'description'])
+                sIPAddress = arrDevice[1]
+                sDeviceName = get_devicename(sIPAddress)
+                print('new sMACAddress '+sMACAddress+' == vendor "'+sVendor+'", name "'+sDeviceName+'"')
+                ReportNewDevice('New device on LAN: sMACAddress '+sMACAddress+' == vendor "'+sVendor+'", name "'+sDeviceName+'"')
+                garrDevices.append([sMACAddress, sVendor, sDeviceName, 'description'])
                 try:
                     WriteDatabase()
                 except:
