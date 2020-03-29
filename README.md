@@ -29,10 +29,14 @@ python3 --version
 # On Debian-type Linux:
 sudo apt-get update
 sudo apt-get install python3
+#sudo apt-get install python3-smbc
+sudo apt-get install smbclient
+
 
 # After python is installed:
 pip3 install plyer
 pip3 install scapy
+pip3 install smbprotocol
 ```
 
 #### On Windows 10

@@ -41,6 +41,9 @@ gsUIChoice = 'stdout'   # one or more of: notification syslog stdout
 
 gsDatabaseFilename = 'lanwatch.csv'
 
+# used to identify vendors where official MAC lookup fails
+gsMACVendorsFilename = 'lanwatch-MACVendors.csv'
+
 
 #--------------------------------------------------------------------------------------------------
 
@@ -54,6 +57,15 @@ import os           # https://docs.python.org/3/library/os.html
 import socket
 import scapy.all as scapy
 import csv          # https://docs.python.org/3/library/csv.html
+
+#import smbc    # pip3 install smbprotocol
+#import pysmb        # pip3 install pysmb  # https://pysmb.readthedocs.io/en/latest/
+#import smbclient    # pip3 install smbprotocol  # https://pypi.org/project/smbprotocol/
+#import smb      # sudo apt-get install python3-libsmbios
+
+#import nmb     # https://stackoverflow.com/questions/29157217/python-and-netbios
+
+
 
 gbOSLinux = (platform.system() == "Linux")
 gbOSWindows = (platform.system() == "Windows")
@@ -79,10 +91,12 @@ if gbOSWindows:
 
 garrDevices = []    # each row = [MAC address, vendor, name, description]
 
+garrMACVendors = []    # each row = [MAC OIU, vendor name]
+
 
 
 #--------------------------------------------------------------------------------------------------
-# adapted from https://github.com/williamajayi/network-scanner/blob/master/network_scanner.py
+# Adapted from https://github.com/williamajayi/network-scanner/blob/master/network_scanner.py
 
 def DoARPScan():
 
@@ -105,15 +119,21 @@ def DoARPScan():
 
 
 #--------------------------------------------------------------------------------------------------
-# adapted from https://github.com/williamajayi/network-scanner/blob/master/network_scanner.py
+# Adapted from https://github.com/williamajayi/network-scanner/blob/master/network_scanner.py
+# First 3 bytes (or 24 bits) of MAC address is the Organizationally Unique Identifier (OUI)
+# and usually encodes the manufacturer. 
 
 def get_vendor(mac_address):
 
+    # free and public for up to 1000 requests/day
     r = requests.get("https://api.macvendors.com/" + mac_address)
 
     if r.status_code == 200:
         return r.text
     else:
+        for row in garrMACVendors:
+            if mac_address.startswith(row[0]):
+                return row[1]
         return "Unknown vendor"
 
 
@@ -134,18 +154,33 @@ def get_devicename(ip_address):
         #hostnametuple = socket.gethostbyaddr(ip_address)
         #sHostname = hostnametuple[0]
 
-        # gives mfr's domain for router, and local IP addr for all others
+        # gives mfr's domain or "_gateway" for router, and local IP addr for all others
         sHostname = socket.getfqdn(ip_address)
         print('get_devicename: ip_address '+ip_address+' gives hostname '+sHostname)
 
         # works for some Windows 10 machines, have to be running NETBIOS ?
+        # doesn't work if this machine is running VPN ?
         # nmblookup -A 192.168.0.11
+        # https://github.com/samba-team/samba/blob/master/source3/utils/nmblookup.c
 
         # works only if there is a DNS for the LAN (unlikely)
         # nslookup 192.168.0.11
 
         # hostname of THIS machine
         # hostname -f
+
+        #conn = smb.SMBConnection()
+        #conn.connect(ip_address, 445)
+        #conn.close()
+        #sHostname = "past SMB"
+
+        # https://stackoverflow.com/questions/13252443/pysmb-windows-file-share-buffer-overflow#17595594
+        # https://github.com/humberry/smb-example/blob/master/smb-test.py
+        #bios = NetBIOS()
+        #srv_name = bios.queryIPForName(remote_smb_ip, timeout=timeout)
+        #bios.close()
+        #sHostname = "past NMB"
+
     except:
         sHostname = 'Unknown name'
     return sHostname
@@ -196,6 +231,25 @@ def ReportNewDevice(sMsg):
             # https://rosettacode.org/wiki/Write_to_Windows_event_log#Python
             # on Win10, to see output:
             # run Event Viewer application.
+
+
+#--------------------------------------------------------------------------------------------------
+
+def ReadVendors():
+
+    global gsMACVendorsFilename
+    global garrMACVendors
+
+    garrMACVendors = []
+
+    print('ReadVendors: called')
+    objFile = open(gsMACVendorsFilename, "r", newline='')
+    objReader = csv.reader(objFile)
+    for row in objReader:
+        print('ReadVendors: got row '+str(row))
+        garrMACVendors.append(row)
+    objReader = None
+    objFile.close()
 
 
 #--------------------------------------------------------------------------------------------------
@@ -263,6 +317,12 @@ def bIsMACAddressInDatabase(sMACAddress):
 #--------------------------------------------------------------------------------------------------
 
 if __name__ == '__main__':
+
+    try:
+        ReadVendors()
+    except:
+        print('read "'+gsMACVendorsFilename+'" failed')
+        sys.exit()
 
     try:
         ReadDatabase()
