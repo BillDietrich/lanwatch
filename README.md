@@ -1,10 +1,6 @@
 # lanwatch
 Report new devices that appear on LAN, and maintain an inventory of devices.
 
-[IN PROTOTYPING STAGE; NOT DANGEROUS, BUT NOT READY FOR USE !!!]
-
-![Do not use](http://4.bp.blogspot.com/-1lTbJMSPZaE/Tyu0eri0bOI/AAAAAAAAEP0/L6yk8jqGUwI/s1600/abnormal%2Bbrain.jpg "Do not use")
-
 https://github.com/BillDietrich/lanwatch
 
 ---
@@ -14,10 +10,10 @@ https://github.com/BillDietrich/lanwatch
 ### Copy the minimal files to disk
 In the GitHub repo, click the "Clone or download" button, then click the "Download ZIP" button.  Save the ZIP file to disk.
 #### On Linux
-Copy file lanwatch.py from the ZIP file to /usr/local/bin
+Copy files lanwatch.py and lanwatch-MACVendors.csv from the ZIP file to /usr/local/bin
 
 #### On Windows 10
-Copy files lanwatch.cmd and lanwatch.py from the ZIP file to some folder.
+Copy files lanwatch.cmd and lanwatch.py and lanwatch-MACVendors.csv from the ZIP file to some folder.
 
 ### Requires Python 3.3+
 #### On Linux
@@ -37,6 +33,11 @@ sudo apt-get install smbclient
 pip3 install plyer
 pip3 install scapy
 pip3 install smbprotocol
+```
+
+If you want to do desktop notifications, you must also:
+```bash
+sudo -H pip3 install plyer
 ```
 
 #### On Windows 10
@@ -65,20 +66,39 @@ With Python installed:
 ## Quick-start to try lanwatch: run it manually
 
 ### On Linux command-line
+
+1. Run the application:
 ```bash
 sudo lanwatch.py
 ```
 
-See desktop notifications.
+2. See desktop notifications.
+
+3. After the notifications stop (all current devices are found), kill the application and edit the /usr/local/bin/lanwatch.csv file to add information (such as host names and descriptions: e.g. ```Joe's laptop,HP Pavilion```).  The file line format is ```MAC address,network chip vendor,host name,description```.
+
+4. Run the application again.
+
+5. Any time a new device appears, see a notification.
+
+Technically, you could edit the /usr/local/bin/lanwatch.csv file while the application is running.  But there is a chance that you could be editing the file when a new device appears, and the application would read and then write the same file you're editing, which would not be good.  Best to stop the application when you want to edit the /usr/local/bin/lanwatch.csv file.
+
+The /usr/local/bin/lanwatch-MACVendors.csv file is read only when the application is started.  So it is safe for you to edit that file at any time, but changes will not be used until you stop and restart the application.  The file line format is ```First half of MAC address,network chip vendor```.
 
 ### On Windows 10
-Double-click on lanwatch.cmd file.
 
-See notifications in "action center" at right end of system tray.
+1. Double-click on lanwatch.cmd file.
+
+2. See notifications in "action center" at right end of system tray.
+
+3. After the notifications stop (all current devices are found), kill the application and edit the lanwatch.csv file to add information (such as host names and descriptions: e.g. ```Joe's laptop,HP Pavilion```).  The file line format is ```MAC address,network chip vendor,host name,description```.
+
+4. Run the application again.
+
+5. Any time a new device appears, see a notification.
 
 ---
 
-## Ways lanwatch can report IP address changes
+## Ways lanwatch can report new devices
 
 You can choose one or more of the following:
 
@@ -118,12 +138,8 @@ For Win10, to see output, run Event Viewer application.  Look in administrative 
 sudo lanwatch.py
 ```
 
-Then try steps in the "Testing" section, below.
-
 #### On Windows 10
 Double-click on lanwatch.cmd file.
-
-Then try steps in the "Testing" section, below.
 
 ### Run the program automatically
 
@@ -134,11 +150,10 @@ sudo edit /usr/local/bin/lanwatch.py		# to set gsUIChoice to "syslog".
 sudo cp lanwatch.service /etc/systemd/system
 ```
 
-After rebooting, on command-line do
+After rebooting, when desired to see if there are any new devices, on command-line do
 ```bash
 sudo journalctl | grep lanwatch
 ```
-Then try steps in the "Testing" section, below, and check the journal again.
 
 #### From a Windows 10 task started when you log in
 
@@ -152,25 +167,23 @@ Then try steps in the "Testing" section, below, and check the journal again.
 8. Save the task.
 9. The task will appear in the list of Active Tasks (bottom of middle pane).
 10. Log out and back in.
-11. lanwatch should report an IP address change, in whatever way it's configured to report.
-
----
-
-## Testing
-1. After lanwatch.py starts (either via command-line or service), add a new device on the LAN.
+11. lanwatch should report any new LAN devices, in whatever way it's configured to report.
 
 ---
 
 ## Limitations
-* Tested only on Linux Mint 19.3 Cinnamon with 5.3 kernel, and Windows 10 Home.
+* Tested only on Linux Mint 19.3 Cinnamon with 5.3 kernel.
 * Tested only with IPv4, not IPv6.
-* On Linux, tested only with strongSwan/IPsec to Windscribe VPN.
-* On Win10, tested only without VPN.
+* On Linux, tested only with strongSwan/IPsec to Windscribe VPN, and without VPN.
 * Not tested on a LAN with no internet access.
 * Requires Python 3.3 or greater.
-* Can't guarantee that quick, transient device appear/disappear will be detected.
+* Polls every 5 minutes, so a quick, transient device appear/disappear probably won't be detected.
+* Doesn't get host names automatically.
 
 ## To-Do
+* Desktop notifications don't work because of sudo.
+* Automatically set host names of at least this machine and the router.
+* Find a way to get host names automatically.
 
 ---
 

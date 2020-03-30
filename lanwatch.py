@@ -2,7 +2,7 @@
 
 #--------------------------------------------------------------------------------------------------
 # lanwatch.py        Report new devices that appear on LAN, and maintain an inventory of devices.
-#                   https://github.com/BillDietrich/lawatch
+#                   https://github.com/BillDietrich/lanwatch
 
 # If this is going to run at boot-time, put this file in the root filesystem
 # (maybe in /usr/local/bin) instead of under /home, because /home may not
@@ -33,16 +33,17 @@
 
 # edit these to change the behavior of the app
 
-gsIPRange = '192.168.0.0/24'
-
-gsAccessType = 'HTTP'         # HTTP or DNS
+gsIPRange = '192.168.0.0/24'    # "/24" means "first 24 bits are constant"
 
 gsUIChoice = 'stdout'   # one or more of: notification syslog stdout
 
+# file of machines seen on the LAN; read and written by this application
 gsDatabaseFilename = 'lanwatch.csv'
 
-# used to identify vendors where official MAC lookup fails
+# used to identify vendors where official MAC lookup fails; read by this application
 gsMACVendorsFilename = 'lanwatch-MACVendors.csv'
+
+gnPollingIntervalSeconds = 300
 
 
 #--------------------------------------------------------------------------------------------------
@@ -52,8 +53,8 @@ import sys
 import platform
 import time         # https://www.cyberciti.biz/faq/howto-get-current-date-time-in-python/
 import requests
-import ipaddress
-import os           # https://docs.python.org/3/library/os.html
+#import ipaddress
+#import os           # https://docs.python.org/3/library/os.html
 import socket
 import scapy.all as scapy
 import csv          # https://docs.python.org/3/library/csv.html
@@ -89,9 +90,13 @@ if gbOSWindows:
 
 # state variables
 
-garrDevices = []    # each row = [MAC address, vendor, name, description]
+garrDevices = []    # each row = [MAC address, vendor name, host name, description]
 
 garrMACVendors = []    # each row = [MAC OIU, vendor name]
+
+gsMyMACAddress = None    # MAC address of this system
+
+gsMyIPAddress = None     # LAN IP address of this system
 
 
 
@@ -101,6 +106,8 @@ garrMACVendors = []    # each row = [MAC OIU, vendor name]
 def DoARPScan():
 
     global gsIPRange
+    global gsMyMACAddress
+    global gsMyIPAddress
 
     arp_req = scapy.ARP(pdst=gsIPRange)    # get an arp request
     broadcast = scapy.Ether(dst="ff:ff:ff:ff:ff:ff")    # Set the destination mac address
@@ -111,10 +118,18 @@ def DoARPScan():
 
     arrAddress = []
     for element in answered:
-        # print('element '+str(element))
+        #print('element '+str(element))
         #       [MAC address, LAN IP address]
         arrAddress.append([element[1].hwsrc, element[1].psrc])
+        if not gsMyMACAddress:
+            gsMyMACAddress = element[1].dst
+            gsMyIPAddress = element[1].pdst
     
+    # ARP scan doesn't get local system (machine this application is running on),
+    # so add it
+    if gsMyMACAddress:
+        arrAddress.append([gsMyMACAddress, gsMyIPAddress])
+
     return arrAddress
 
 
@@ -123,7 +138,7 @@ def DoARPScan():
 # First 3 bytes (or 24 bits) of MAC address is the Organizationally Unique Identifier (OUI)
 # and usually encodes the manufacturer. 
 
-def get_vendor(mac_address):
+def GetVendorName(mac_address):
 
     # free and public for up to 1000 requests/day
     r = requests.get("https://api.macvendors.com/" + mac_address)
@@ -139,7 +154,7 @@ def get_vendor(mac_address):
 
 #--------------------------------------------------------------------------------------------------
 
-def get_devicename(ip_address):
+def GetDeviceName(ip_address):
 
     # https://www.comparitech.com/net-admin/scan-for-ip-addresses-local-network/
     # https://www.comparitech.com/net-admin/dhcp/
@@ -156,11 +171,13 @@ def get_devicename(ip_address):
 
         # gives mfr's domain or "_gateway" for router, and local IP addr for all others
         sHostname = socket.getfqdn(ip_address)
-        print('get_devicename: ip_address '+ip_address+' gives hostname '+sHostname)
+        #print('GetDeviceName: ip_address '+ip_address+' gives hostname '+sHostname)
 
         # works for some Windows 10 machines, have to be running NETBIOS ?
         # doesn't work if this machine is running VPN ?
         # nmblookup -A 192.168.0.11
+        # smbclient -L //192.168.0.11/printer
+        # findsmb
         # https://github.com/samba-team/samba/blob/master/source3/utils/nmblookup.c
 
         # works only if there is a DNS for the LAN (unlikely)
@@ -242,11 +259,11 @@ def ReadVendors():
 
     garrMACVendors = []
 
-    print('ReadVendors: called')
+    #print('ReadVendors: called')
     objFile = open(gsMACVendorsFilename, "r", newline='')
     objReader = csv.reader(objFile)
     for row in objReader:
-        print('ReadVendors: got row '+str(row))
+        #print('ReadVendors: got row '+str(row))
         garrMACVendors.append(row)
     objReader = None
     objFile.close()
@@ -258,7 +275,7 @@ def CreateDatabase():
 
     global gsDatabaseFilename
 
-    print('CreateDatabase: called')
+    #print('CreateDatabase: called')
     f = open(gsDatabaseFilename,"w+")
     f.close()
 
@@ -272,11 +289,11 @@ def ReadDatabase():
 
     garrDevices = []
 
-    print('ReadDatabase: called')
+    #print('ReadDatabase: called')
     objDatabaseFile = open(gsDatabaseFilename, "r", newline='')
     objDatabaseReader = csv.reader(objDatabaseFile)
     for row in objDatabaseReader:
-        print('ReadDatabase: got row '+str(row))
+        #print('ReadDatabase: got row '+str(row))
         garrDevices.append(row)
     objDatabaseReader = None
     objDatabaseFile.close()
@@ -289,11 +306,11 @@ def WriteDatabase():
     global gsDatabaseFilename
     global garrDevices
 
-    print('WriteDatabase: called')
+    #print('WriteDatabase: called')
     objDatabaseFile = open(gsDatabaseFilename, "w", newline='')
     objDatabaseWriter = csv.writer(objDatabaseFile)
     for row in garrDevices:
-        print('WriteDatabase: write row '+str(row))
+        #print('WriteDatabase: write row '+str(row))
         objDatabaseWriter.writerow(row)
     #objDatabaseWriter.writerow([time.strftime("%H:%M:%S")] + ['78901'])
     #objDatabaseWriter.writerow([time.strftime("%H:%M:%S")] + ['jklmn'])
@@ -307,7 +324,7 @@ def bIsMACAddressInDatabase(sMACAddress):
 
     global garrDevices
 
-    print('IsMACAddressInDatabase: called, sMACAddress '+sMACAddress)
+    #print('IsMACAddressInDatabase: called, sMACAddress '+sMACAddress)
     for row in garrDevices:
         if (row[0] == sMACAddress):
             return True
@@ -327,7 +344,7 @@ if __name__ == '__main__':
     try:
         ReadDatabase()
     except:
-        print('read "'+gsDatabaseFilename+'" failed, creating file')
+        #print('read "'+gsDatabaseFilename+'" failed, creating file')
         try:
             CreateDatabase()
         except:
@@ -337,17 +354,28 @@ if __name__ == '__main__':
     while True:
 
         arrAddress = DoARPScan()
-        print('arrAddress '+str(arrAddress))
+        #print('arrAddress '+str(arrAddress))
 
         for arrDevice in arrAddress:
             sMACAddress = arrDevice[0]
             if (not bIsMACAddressInDatabase(sMACAddress)):
-                sVendor = get_vendor(sMACAddress)
+                sVendor = GetVendorName(sMACAddress)
                 sIPAddress = arrDevice[1]
-                sDeviceName = get_devicename(sIPAddress)
-                print('new sMACAddress '+sMACAddress+' == vendor "'+sVendor+'", name "'+sDeviceName+'"')
-                ReportNewDevice('New device on LAN: sMACAddress '+sMACAddress+' == vendor "'+sVendor+'", name "'+sDeviceName+'"')
-                garrDevices.append([sMACAddress, sVendor, sDeviceName, 'description'])
+                sDeviceName = GetDeviceName(sIPAddress)
+                sDescription = 'description'
+                #print('new sMACAddress '+sMACAddress+' == vendor "'+sVendor+'", name "'+sDeviceName+'"')
+                if sDeviceName == '_gateway':
+                    sDescription = "router"
+                if sIPAddress == gsMyIPAddress:
+                    sDeviceName = socket.gethostname()
+                ReportNewDevice('New device on LAN: '+sMACAddress+' == vendor "'+sVendor+'", name "'+sDeviceName+'"')
+                # read latest database file again in case someone edited it since last time we read it
+                try:
+                    ReadDatabase()
+                except:
+                    print('read "'+gsDatabaseFilename+'" failed')
+                    sys.exit()
+                garrDevices.append([sMACAddress, sVendor, sDeviceName, sDescription])
                 try:
                     WriteDatabase()
                 except:
@@ -356,7 +384,7 @@ if __name__ == '__main__':
                 time.sleep(1)
 
         try:
-            time.sleep(15)
+            time.sleep(gnPollingIntervalSeconds)
         except KeyboardInterrupt:
             sys.exit()
 
