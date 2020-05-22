@@ -11,6 +11,10 @@ https://github.com/BillDietrich/lanwatch
 In the GitHub repo, click the "Clone or download" button, then click the "Download ZIP" button.  Save the ZIP file to disk.
 #### On Linux
 Copy files lanwatch.py and lanwatch-MACVendors.csv from the ZIP file to /usr/local/bin
+```bash
+sudo cp lanwatch.py /usr/local/bin
+sudo cp lanwatch-MACVendors.csv /usr/local/bin
+```
 
 #### On Windows 10
 Copy files lanwatch.cmd and lanwatch.py and lanwatch-MACVendors.csv from the ZIP file to some folder.
@@ -33,11 +37,10 @@ sudo apt-get install smbclient
 pip3 install plyer
 pip3 install scapy
 pip3 install smbprotocol
-```
 
-If you want to do desktop notifications, you must also:
-```bash
 sudo -H pip3 install plyer
+sudo -H pip3 install scapy
+sudo -H pip3 install smbprotocol
 ```
 
 #### On Windows 10
@@ -119,9 +122,13 @@ Edit lanwatch.py to set gsUIChoice to "syslog".
 
 You will see reports in the system log:
 
-For Linux, to see output, on command-line do
+For Linux, to see output for new devices, on command-line do
 ```bash
-sudo journalctl | grep lanwatch
+sudo journalctl | grep lanwatch.py
+```
+Or to see the whole list of known devices, with newest at end, do
+```bash
+cat /usr/local/bin/lanwatch.csv
 ```
 
 For Win10, to see output, run Event Viewer application.  Look in administrative events from Applications, and look for events with Origin "lanwatch".
@@ -146,13 +153,15 @@ Double-click on lanwatch.cmd file.
 #### From a Linux systemd service started at system boot time
 ```bash
 sudo cp lanwatch.py /usr/local/bin		# you may have done this already
-sudo edit /usr/local/bin/lanwatch.py		# to set gsUIChoice to "syslog".
+sudo edit /usr/local/bin/lanwatch.py	# to set gsUIChoice to "syslog", and add "/usr/local/bin/" to filenames
 sudo cp lanwatch.service /etc/systemd/system
+sudo systemctl enable lanwatch
+sudo systemctl start lanwatch
 ```
 
-After rebooting, when desired to see if there are any new devices, on command-line do
+When desired to see if there are any new devices, on command-line do
 ```bash
-sudo journalctl | grep lanwatch
+sudo journalctl | grep lanwatch.py
 ```
 
 #### From a Windows 10 task started when you log in
@@ -178,11 +187,10 @@ sudo journalctl | grep lanwatch
 * Not tested on a LAN with no internet access.
 * Requires Python 3.3 or greater.
 * Polls every 5 minutes, so a quick, transient device appear/disappear probably won't be detected.
-* Doesn't get host names automatically.
+* Doesn't get host names automatically, except for the local machine.
 
 ## To-Do
 * Desktop notifications don't work because of sudo.
-* Automatically set host names of at least this machine and the router.
 * Find a way to get host names automatically.
 
 ---

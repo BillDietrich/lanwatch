@@ -33,9 +33,9 @@
 
 # edit these to change the behavior of the app
 
-gsIPRange = '192.168.0.0/24'    # "/24" means "first 24 bits are constant"
+gsIPRange = '192.168.0.0/16'    # "/16" means "first 16 bits are constant"
 
-gsUIChoice = 'stdout'   # one or more of: notification syslog stdout
+gsUIChoice = 'notification'   # one or more of: notification syslog stdout
 
 # file of machines seen on the LAN; read and written by this application
 gsDatabaseFilename = 'lanwatch.csv'
